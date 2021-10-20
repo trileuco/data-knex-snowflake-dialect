@@ -5,7 +5,7 @@ import { defer, fromPairs, isArray, map, toPairs } from "lodash";
 import { QueryCompiler } from "./query/QueryCompiler";
 import { SchemaCompiler, TableCompiler } from "./schema";
 import * as ColumnBuilder from "knex/lib/schema/columnbuilder";
-import * as ColumnCompiler_MySQL from "knex/lib/dialects/mysql/schema/columncompiler";
+import * as ColumnCompiler_MySQL from "knex/lib/dialects/mysql/schema/mysql-columncompiler";
 import * as Transaction from "knex/lib/transaction";
 import { promisify } from "util";
 
@@ -16,7 +16,7 @@ export class SnowflakeDialect extends Knex.Client {
         config.connection.username = config.connection.user;
       }
       if (config.connection.host) {
-        const [account, region] = config.connection.host.split('.');
+        const [account, region] = config.connection.host.split(".");
         if (!config.connection.account) {
           config.connection.account = account;
         }
@@ -40,17 +40,17 @@ export class SnowflakeDialect extends Knex.Client {
     const transax = new Transaction(this, container, config, outerTx);
     transax.savepoint = (conn: any) => {
       // @ts-ignore
-      transax.trxClient.logger('Snowflake does not support savepoints.');
+      transax.trxClient.logger("Snowflake does not support savepoints.");
     };
 
     transax.release = (conn: any, value: any) => {
       // @ts-ignore
-      transax.trxClient.logger('Snowflake does not support savepoints.');
+      transax.trxClient.logger("Snowflake does not support savepoints.");
     };
 
     transax.rollbackTo = (conn: any, error: any) => {
       // @ts-ignore
-      this.trxClient.logger('Snowflake does not support savepoints.');
+      this.trxClient.logger("Snowflake does not support savepoints.");
     };
     return transax;
   }
@@ -63,15 +63,19 @@ export class SnowflakeDialect extends Knex.Client {
     // ColumnBuilder methods are created at runtime, so that it does not play well with TypeScript.
     // So instead of extending ColumnBuilder, we override methods at runtime here
     const columnBuilder = new ColumnBuilder(this, tableBuilder, type, args);
-    columnBuilder.primary = (constraintName?: string | undefined): Knex.ColumnBuilder => {
+    columnBuilder.primary = (
+      constraintName?: string | undefined
+    ): Knex.ColumnBuilder => {
       // @ts-ignore
       columnBuilder.notNullable();
       return columnBuilder;
     };
-    columnBuilder.index = (indexName?: string | undefined): Knex.ColumnBuilder => {
+    columnBuilder.index = (
+      indexName?: string | undefined
+    ): Knex.ColumnBuilder => {
       // @ts-ignore
       columnBuilder.client.logger.warn(
-        'Snowflake does not support the creation of indexes.'
+        "Snowflake does not support the creation of indexes."
       );
       return columnBuilder;
     };
@@ -82,20 +86,40 @@ export class SnowflakeDialect extends Knex.Client {
   columnCompiler(tableCompiler: any, columnBuilder: any) {
     // ColumnCompiler methods are created at runtime, so that it does not play well with TypeScript.
     // So instead of extending ColumnCompiler, we override methods at runtime here
-    const columnCompiler = new ColumnCompiler_MySQL(this, tableCompiler.tableBuilder, columnBuilder);
-    columnCompiler.increments = 'int not null autoincrement primary key';
-    columnCompiler.bigincrements = 'bigint not null autoincrement primary key';
+    const columnCompiler = new ColumnCompiler_MySQL(
+      this,
+      tableCompiler.tableBuilder,
+      columnBuilder
+    );
+    columnCompiler.increments = "int not null autoincrement primary key";
+    columnCompiler.bigincrements = "bigint not null autoincrement primary key";
 
-      columnCompiler.mediumint = (colName: string) => "integer";
-    columnCompiler.decimal = (colName: string, precision?: number, scale?: number) => {
+    columnCompiler.mediumint = (colName: string) => "integer";
+    columnCompiler.decimal = (
+      colName: string,
+      precision?: number,
+      scale?: number
+    ) => {
       if (precision) {
-        return ColumnCompiler_MySQL.prototype.decimal(colName, precision, scale);
+        return ColumnCompiler_MySQL.prototype.decimal(
+          colName,
+          precision,
+          scale
+        );
       }
       return "decimal";
     };
-    columnCompiler.double = (colName: string, precision?: number, scale?: number) => {
+    columnCompiler.double = (
+      colName: string,
+      precision?: number,
+      scale?: number
+    ) => {
       if (precision) {
-        return ColumnCompiler_MySQL.prototype.decimal(colName, precision, scale);
+        return ColumnCompiler_MySQL.prototype.decimal(
+          colName,
+          precision,
+          scale
+        );
       }
       return "double";
     };
@@ -123,7 +147,7 @@ export class SnowflakeDialect extends Knex.Client {
     return new Bluebird((resolver, rejecter) => {
       // @ts-ignore
       const connection = this.driver.createConnection(this.connectionSettings);
-      connection.on('error', (err) => {
+      connection.on("error", (err) => {
         connection.__knex__disposed = err;
       });
       connection.connect((err) => {
@@ -161,24 +185,23 @@ export class SnowflakeDialect extends Knex.Client {
   // Runs the query on the specified connection, providing the bindings
   // and any other necessary prep work.
   _query(connection: any, obj: any) {
-    if (!obj || typeof obj === 'string') obj = { sql: obj };
+    if (!obj || typeof obj === "string") obj = { sql: obj };
     return new Bluebird((resolver: any, rejecter: any) => {
       if (!obj.sql) {
         resolver();
         return;
       }
 
-      const queryOptions =
-          {
-            sqlText: obj.sql,
-            binds: obj.bindings,
-            complete(err: any, statement: any, rows: any) {
-              if (err) return rejecter(err);
-              obj.response = {rows, statement};
-              resolver(obj);
-            },
-            ...obj.options
-          };
+      const queryOptions = {
+        sqlText: obj.sql,
+        binds: obj.bindings,
+        complete(err: any, statement: any, rows: any) {
+          if (err) return rejecter(err);
+          obj.response = { rows, statement };
+          resolver(obj);
+        },
+        ...obj.options,
+      };
       connection.execute(queryOptions);
     });
   }
@@ -187,19 +210,19 @@ export class SnowflakeDialect extends Knex.Client {
   processResponse(obj: any, runner: any) {
     const resp = obj.response;
     if (obj.output) return obj.output.call(runner, resp);
-    if (obj.method === 'raw') return resp;
-    if (obj.method === 'select') {
+    if (obj.method === "raw") return resp;
+    if (obj.method === "select") {
       // if (obj.method === 'first') return resp.rows[0];
       // if (obj.method === 'pluck') return map(resp.rows, obj.pluck);
       return resp.rows;
     }
     if (
-      obj.method === 'insert' ||
-      obj.method === 'update' ||
-      obj.method === 'delete'
+      obj.method === "insert" ||
+      obj.method === "update" ||
+      obj.method === "delete"
     ) {
       if (resp.rows) {
-        const method = obj.method === 'insert' ? 'inserte' : obj.method;
+        const method = obj.method === "insert" ? "inserte" : obj.method;
         return resp.rows.reduce(
           (count, row) => count + row[`number of rows ${method}d`],
           0
@@ -227,22 +250,20 @@ export class SnowflakeDialect extends Knex.Client {
     if (result.rows) {
       return {
         ...result,
-        rows: result.rows.map(lowercaseAttrs)
+        rows: result.rows.map(lowercaseAttrs),
       };
     } else if (isArray(result)) {
       return result.map(lowercaseAttrs);
     }
     return result;
-  };
+  }
 
   customWrapIdentifier(value, origImpl, queryContext) {
     if (this.config.wrapIdentifier) {
       return this.config.wrapIdentifier(value, origImpl, queryContext);
-    }
-    else if (!value.startsWith('"')) {
+    } else if (!value.startsWith('"')) {
       return origImpl(value.toUpperCase());
     }
     return origImpl;
   }
-
 }
